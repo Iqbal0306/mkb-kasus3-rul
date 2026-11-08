@@ -1,26 +1,9 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
+import requests
 
 st.set_page_config(page_title="Prediksi RUL Motor", page_icon="⚙️")
-
 st.title("⚙️ Prediksi Sisa Umur Pakai Motor Induksi")
-st.write("Masukkan nilai sensor saat ini untuk memperkirakan berapa jam lagi motor akan bertahan sebelum rusak.")
-
-# 1. Definisi fungsi pembersih data (WAJIB ADA agar model bisa dibaca)
-def bersihkan_data(df):
-    df_bersih = df.copy()
-    df_bersih.loc[df_bersih["getaran_mm_s"] < 0, "getaran_mm_s"] = np.nan
-    df_bersih.loc[df_bersih["arus_ampere"] < 0, "arus_ampere"] = np.nan
-    return df_bersih
-
-# 2. Load model
-try:
-    model = joblib.load("artifacts/model_rul.joblib")
-except FileNotFoundError:
-    st.error("Model tidak ditemukan! Pastikan file artifacts/model_rul.joblib ada di repositori.")
-    st.stop()
+st.write("Sistem Arsitektur Terpisah: UI (Streamlit) -> API (FastAPI) -> Model (XGBoost)")
 
 with st.form("form_sensor"):
     st.subheader("Data Sensor Real-Time")
@@ -32,26 +15,30 @@ with st.form("form_sensor"):
     submitted = st.form_submit_button("Prediksi Sisa Umur")
 
 if submitted:
-    # Key harus sama persis dengan FITUR saat melatih model di Colab
-    input_data = pd.DataFrame([{
+    # Format JSON yang akan dikirim ke FastAPI
+    payload = {
         "arus_ampere": arus,
         "getaran_mm_s": getaran,
         "suhu_body_c": suhu,
         "tegangan_volt": tegangan
-    }])
+    }
     
-    # Lakukan prediksi
-    prediksi_rul = model.predict(input_data)[0]
-    
-    # Mencegah nilai minus
-    rul = round(max(0.0, float(prediksi_rul)), 2)
-    
-    st.divider()
-    if rul > 500:
-        st.success(f"✅ **Kondisi Prima!** Motor diperkirakan dapat beroperasi selama **{rul} jam** lagi.")
-    elif rul > 100:
-        st.info(f"🆗 **Kondisi Normal.** Sisa umur operasional motor: **{rul} jam**.")
-    elif rul > 24:
-        st.warning(f"⚠️ **Perhatian.** Sisa umur operasional motor: **{rul} jam**. Segera siapkan jadwal servis rutin.")
-    else:
-        st.error(f"🚨 **KRITIS!** Hentikan operasi. Motor akan gagal dalam **{rul} jam**.")
+    try:
+        # Menembak endpoint FastAPI secara lokal
+        response = requests.post("http://127.0.0.1:8000/predict", json=payload)
+        hasil = response.json()
+        
+        rul = hasil["remaining_useful_life_hours"]
+        
+        st.divider()
+        if rul > 500:
+            st.success(f"✅ **Kondisi Prima!** Motor diperkirakan beroperasi **{rul} jam** lagi.")
+        elif rul > 100:
+            st.info(f"🆗 **Kondisi Normal.** Sisa umur operasional: **{rul} jam**.")
+        elif rul > 24:
+            st.warning(f"⚠️ **Perhatian.** Sisa umur operasional: **{rul} jam**. Siapkan servis.")
+        else:
+            st.error(f"🚨 **KRITIS!** Hentikan operasi. Motor gagal dalam **{rul} jam**.")
+            
+    except requests.exceptions.ConnectionError:
+        st.error("Server API belum berjalan. Pastikan FastAPI (uvicorn) sudah dihidupkan di terminal terpisah.")

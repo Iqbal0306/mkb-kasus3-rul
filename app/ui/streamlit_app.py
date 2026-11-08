@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 
 st.set_page_config(page_title="Prediksi RUL Motor", page_icon="⚙️")
@@ -7,7 +8,14 @@ st.set_page_config(page_title="Prediksi RUL Motor", page_icon="⚙️")
 st.title("⚙️ Prediksi Sisa Umur Pakai Motor Induksi")
 st.write("Masukkan nilai sensor saat ini untuk memperkirakan berapa jam lagi motor akan bertahan sebelum rusak.")
 
-# Load model
+# 1. Definisi fungsi pembersih data (WAJIB ADA agar model bisa dibaca)
+def bersihkan_data(df):
+    df_bersih = df.copy()
+    df_bersih.loc[df_bersih["getaran_mm_s"] < 0, "getaran_mm_s"] = np.nan
+    df_bersih.loc[df_bersih["arus_ampere"] < 0, "arus_ampere"] = np.nan
+    return df_bersih
+
+# 2. Load model
 try:
     model = joblib.load("artifacts/model_rul.joblib")
 except FileNotFoundError:
@@ -35,7 +43,7 @@ if submitted:
     # Lakukan prediksi
     prediksi_rul = model.predict(input_data)[0]
     
-    # Mencegah nilai minus jika mesin sudah di ambang batas rusak parah
+    # Mencegah nilai minus
     rul = round(max(0.0, float(prediksi_rul)), 2)
     
     st.divider()

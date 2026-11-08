@@ -1,0 +1,11 @@
+# Lingkungan virtual Python
+.venv/
+venv/
+env/
+
+# Berkas cache Python
+__pycache__/
+*.pyc
+
+# Konfigurasi sistem
+.DS_Store
